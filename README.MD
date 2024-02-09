@@ -42,6 +42,8 @@ python3 frequency_analyzer.py -h
 # Limitations
 * Won't detect character deletion
 * It can only detect character combinations once. Repeating patterns won't get exfiltrated.
+* Only works if a reactive framework is used. (e.g. Angular or React) Else the password field won't be updated and the selectors won't be triggered.
+* ... more to come
 
 # Notice
 This repository was created during security research at university. It is only intended for educational purposes and should not be used for illegal activities. The author assumes no liability for any damage caused by the use of the code.
