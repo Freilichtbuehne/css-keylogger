@@ -19,7 +19,7 @@ parser.add_argument("-o", "--output-file", type = str, help="File to save the re
 
 general_group = parser.add_argument_group("FILTER")
 parser.add_argument("--start", default=0x20, type = int, help="Ignore characters below this value (e.g. 0x20 for space)")
-parser.add_argument("--end", default=0x7e, type = int, help="Ignore characters above this value (e.g. 0x126 for ~)")
+parser.add_argument("--end", default=0x7e, type = int, help="Ignore characters above this value (e.g. 0x7e for tilde)")
 parser.add_argument("-e", "--encoding", default="utf-8", type = str, help="Endcoding to use for reading the file")
 parser.add_argument("-v", "--verbose", action="store_true", help="Increase output verbosity")
 
@@ -41,8 +41,10 @@ logger.addHandler(handler)
 sizes = list(map(int, args.sizes.split(",")))
 # Sizes must contain at least one element and '1' must be present
 assert sizes, "At least one size must be specified"
+# sort and remove duplicates
+sizes = sorted(set(sizes))
 if not 1 in sizes:
-    sizes.append(1)
+    sizes.insert(0, 1)
     logger.warning("Size '1' not present in the list, adding it")
 
 # Check if file exists
@@ -83,7 +85,7 @@ for size in sizes:
 
 # Print collections
 for size, collection in collections.items():
-    logger.info(f"{size}-character combinations:")
+    logger.info(f"Top 100 {size}-character combinations:")
     logger.info(collection.most_common(100))
 
 # Save to file
