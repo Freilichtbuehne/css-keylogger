@@ -8,9 +8,10 @@ Analyze 1, 2 and 3 character combinations in a text file:
 \tpython3 frequency_analyzer.py -i rockyou.txt -s 1,2,3'''
 
 # Initialize argument parsing
+class CustomFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescriptionHelpFormatter): pass
 parser = argparse.ArgumentParser(
     epilog=description,
-    formatter_class=argparse.RawDescriptionHelpFormatter,
+    formatter_class=CustomFormatter,
     description="Frequency analyzer of character combinations in a text file")
 
 general_group = parser.add_argument_group("GENERAL")
@@ -20,7 +21,7 @@ parser.add_argument("-o", "--output-file", type = str, help="File to save the re
 general_group = parser.add_argument_group("FILTER")
 parser.add_argument("--start", default=0x20, type = int, help="Ignore characters below this value (e.g. 0x20 for space)")
 parser.add_argument("--end", default=0x7e, type = int, help="Ignore characters above this value (e.g. 0x7e for tilde)")
-parser.add_argument("-e", "--encoding", default="utf-8", type = str, help="Endcoding to use for reading the file")
+parser.add_argument("-e", "--encoding", default="utf-8", type = str, help="Encoding to use for reading the file")
 parser.add_argument("-v", "--verbose", action="store_true", help="Increase output verbosity")
 
 general_group = parser.add_argument_group("PARAMS")
@@ -57,7 +58,7 @@ lines = []
 with open(args.input_file, "r", encoding=args.encoding, errors="ignore") as f:
     # Remove empty lines and lines containing characters outside the range
     for line in f.read().splitlines():
-        if not any(ord(c) < args.start or ord(c) > args.end for c in line):
+        if line and not any(ord(c) < args.start or ord(c) > args.end for c in line):
             lines.append(line)
     logger.debug(f"Read {len(lines):,} lines from '{args.input_file}'")
 

