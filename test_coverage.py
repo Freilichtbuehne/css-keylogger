@@ -1,10 +1,6 @@
-# generate_keys() -> list
-
-
 from generator import generate_keys
-import argparse, os, json, collections, logging, time
+import argparse, os, json, logging
 
-#TODO: Add description
 description = '''Analyze coverage of frequency based character combinations within a given text file:
 \tpython3 test_coverage.py rockyou.txt -i frequency_en.json
 Compare coverage of frequency based character with all 2-character combinations:
@@ -72,6 +68,13 @@ if args.compare:
     # Overwrite maximum number of selectors
     args.num_selectors = len(t_combs)
 
+    # convert to set to improve performance
+    t_combs = {
+        chr(i): {
+            c for c in t_combs if c.endswith(chr(i))
+        } for i in range(args.start, args.end + 1)
+    }
+
 # Load JSON frequency file
 s_combs = None
 with open(args.input_file, "r") as f:
@@ -80,49 +83,56 @@ assert s_combs, f"Failed to read JSON file {args.input_file}"
 s_combs = generate_keys(s_combs, args.num_selectors, logger=logger)
 logger.debug(f"Generated {len(s_combs):,} n-character combinations")
 
+# convert to set to improve performance
+s_combs = {
+    chr(i): {
+        c for c in s_combs if c.endswith(chr(i))
+    } for i in range(args.start, args.end + 1)
+}
 
-# TODO: This function is excessively slow
-def test_exfiltrate(combinations: list, input_value: list) -> bool:
+def test_exfiltrate(combinations: set, input_value: list) -> bool:
     '''
     Tests if a given input value could get exfiltrated using the given combinations as CSS selectors.
     '''
     exfiltrated = ""
+    used_combinations = set()
+    
     for cur_val in input_value:
         # this simluates a keyup event (the user types a character)
         # the pressed key is then always appended to the attribute value by e.g. a JavaScript event listener
-
+        f_cur = cur_val[-1]
+        cur_val_len = len(cur_val)
         # check if the attribute value ends with any of the combinations
         # if it does, remove the combination from the list
-        cur_val_len = len(cur_val)
-        f_cur = cur_val[-1] 
-        for comb in combinations:
+        for comb in combinations[f_cur]:
+            comb_len = len(comb)
             # instead of using the .endswith() method, we implement it manually to improve performance
-            # if the last character of the combination is not equal to the last character of the attribute value, skip
-            if f_cur != comb[-1]: continue
             # if the combination is longer than the attribute value, skip
-            if len(comb) > cur_val_len: continue
+            if comb_len > cur_val_len: continue
             # if the combination does not end with the attribute value, skip
-            idx = cur_val_len - len(comb)
+            idx = cur_val_len - comb_len
             if cur_val[idx:] != comb: continue
+            # check if the combination was already used
+            if comb in used_combinations: continue
 
             # abc + d -> abcd
-            if len(comb) == 1:
+            if comb_len == 1:
                 exfiltrated += comb
             # abc + bcd -> abcd
             # abc + def -> abcdef
             else:
                 # Check how many characters are common
                 common = 0
-                for i in range(min(len(comb), len(exfiltrated)), 0, -1):
-                    if exfiltrated.endswith(comb[:i]):
+                exfil_len = len(exfiltrated)
+                for i in range(min(comb_len, exfil_len), 0, -1):
+                    if exfiltrated[exfil_len - i:] == comb[:i]:
                         common = i
                         break
                 # Add the remaining characters
                 exfiltrated += comb[common:]
-            combinations.remove(comb)
+            used_combinations.add(comb)
             break
     # check if the exfiltrated value is equal to the input value
-    #print(f"Exfiltrated: {exfiltrated}, Input: {input_value}")
     return exfiltrated == input_value[-1]
 
 # Keep track of all values that could not get exfiltrated
@@ -134,12 +144,12 @@ for line in lines:
     line = [line[:i] for i in range(1, len(line) + 1)]
     # Test single character combinations
     if not test_exfiltrate(s_combs, line):
-        s_comb_fails.append(line)
+        s_comb_fails.append(line[-1])
     # Test all 2-character combinations
-    if args.compare and not test_exfiltrate(t_combs, line):
-        t_comb_fails.append(line)
+    if args.compare and not test_exfiltrate(t_combs , line):
+        t_comb_fails.append(line[-1])
     ctr += 1
-    if ctr % 100 == 0:
+    if ctr % 100_000 == 0:
         logger.debug(f"Progress: {ctr / total * 100:.1f}%")
 
 print(f"\nResults for {args.input_file} (total: {len(lines):,} lines)")
@@ -153,3 +163,14 @@ if args.compare:
     print(f"\nAll 2-character combinations:")
     print(f"Passed: {len(lines) - len(t_comb_fails)} ({(len(lines) - len(t_comb_fails)) / len(lines) * 100:.2f}%)")
     print(f"Failed: {len(t_comb_fails)} ({len(t_comb_fails) / len(lines) * 100:.2f}%)")
+
+# Print first 20 failed lines
+if s_comb_fails:
+    print("\nFirst 20 failed lines (statistical approach):")
+    for line in s_comb_fails[:20]:
+        print(line)
+
+if args.compare and t_comb_fails:
+    print("\nFirst 20 failed lines (2-character combinations):")
+    for line in t_comb_fails[:20]:
+        print(line)

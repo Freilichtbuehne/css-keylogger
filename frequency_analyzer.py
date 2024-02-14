@@ -22,6 +22,7 @@ general_group = parser.add_argument_group("FILTER")
 parser.add_argument("--start", default=0x20, type = int, help="Ignore characters below this value (e.g. 0x20 for space)")
 parser.add_argument("--end", default=0x7e, type = int, help="Ignore characters above this value (e.g. 0x7e for tilde)")
 parser.add_argument("-e", "--encoding", default="utf-8", type = str, help="Encoding to use for reading the file")
+parser.add_argument("-m", "--min-occurence", type = int, help="Minimum number a character combination must occur to be included in the results")
 parser.add_argument("-v", "--verbose", action="store_true", help="Increase output verbosity")
 
 general_group = parser.add_argument_group("PARAMS")
@@ -83,6 +84,14 @@ for size in sizes:
             if ctr % 1_000_000 == 0:
                 logger.debug(f"{size}-char progress: {ctr / total * 100:.1f}%")
     logger.debug(f"Analyzed {ctr:,} lines in {time.time() - start_time:.2f} seconds")
+
+# Filter out combinations that occur less than 'min_occurence' times
+if args.min_occurence:
+    for size, collection in collections.items():
+        if size == 1: continue
+        for key in list(collection.keys()):
+            if collection[key] < args.min_occurence:
+                del collection[key]
 
 # Print collections
 for size, collection in collections.items():
